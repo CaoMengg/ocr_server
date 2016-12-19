@@ -30,6 +30,7 @@ clean:
 
 start:
 	-make stop
+	-make
 	./bin/supervise.ocr_server run/ &
 
 stop:

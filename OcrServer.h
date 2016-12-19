@@ -26,7 +26,7 @@ class OcrServer
     private:
         OcrServer()
         {
-            config = new YamlConf( "conf/wserver.yaml" );
+            config = new YamlConf( "conf/ocr_server.yaml" );
             intListenPort = config->getInt( "listen" );
             listenWatcher = new ev_io();
         }
@@ -63,11 +63,10 @@ class OcrServer
         void readTimeoutCB( int intFd );
         void writeTimeoutCB( int intFd );
         void recvHandshake( SocketConnection *pConnection );
-        void recvMessage( SocketConnection *pConnection );
-        void parseHandshake( SocketConnection *pConnection );
-        void parseMessage( SocketConnection *pConnection );
+        void recvQuery( SocketConnection *pConnection );
+        void parseQuery( SocketConnection *pConnection );
         void ackHandshake( SocketConnection *pConnection );
-        void ackMessage( SocketConnection *pConnection );
+        void ackQuery( SocketConnection *pConnection );
         void closeConnection( SocketConnection *pConnection );
 };
 
