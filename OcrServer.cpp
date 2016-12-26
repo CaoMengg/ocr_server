@@ -51,44 +51,6 @@ static void writeTimeoutCallback( EV_P_ ev_timer *timer, int revents )
     OcrServer::getInstance()->writeTimeoutCB( ((SocketConnection *)timer->data)->intFd );
 }
 
-void OcrServer::ackHandshake( SocketConnection *pConnection )
-{
-    if( pConnection->outBufList.empty() )
-    {
-        return;
-    }
-
-    SocketBuffer *outBuf = pConnection->outBufList.front();
-    if( outBuf->intSentLen < outBuf->intLen )
-    {
-        int n = send( pConnection->intFd, outBuf->data + outBuf->intSentLen, outBuf->intLen - outBuf->intSentLen, 0 );
-        if( n > 0 )
-        {
-            outBuf->intSentLen += n;
-        } else {
-            if( errno==EAGAIN || errno==EWOULDBLOCK )
-            {
-                return;
-            } else {
-                delete pConnection;
-                return;
-            }
-        }
-    }
-
-    if( outBuf->intSentLen >= outBuf->intLen )
-    {
-        LOG(INFO) << "handshake succ, fd=" << pConnection->intFd;
-
-        pConnection->outBufList.pop_front();
-        delete outBuf;
-
-        pConnection->status = csConnected;
-        ev_io_stop( pMainLoop, pConnection->writeWatcher );
-        ev_timer_stop( pMainLoop, pConnection->writeTimer );
-    }
-}
-
 void OcrServer::ackQuery( SocketConnection *pConnection )
 {
     SocketBuffer *outBuf = NULL;
@@ -141,13 +103,7 @@ void OcrServer::writeCB( int intFd )
         return;
     }
     SocketConnection* pConnection = it->second;
-
-    if( pConnection->status == csAccepted )
-    {
-        ackHandshake( pConnection );
-    } else {
-        ackQuery( pConnection );
-    }
+    ackQuery( pConnection );
 }
 
 static void writeCallback( EV_P_ ev_io *watcher, int revents )
@@ -157,29 +113,41 @@ static void writeCallback( EV_P_ ev_io *watcher, int revents )
     OcrServer::getInstance()->writeCB( watcher->fd );
 }
 
-void OcrServer::recvHandshake( SocketConnection *pConnection )
+size_t getPicData(void *ptr, size_t size, size_t nmemb, SocketBuffer *buffer)  
 {
-    int n = recv( pConnection->intFd, pConnection->inBuf->data + pConnection->inBuf->intLen, pConnection->inBuf->intSize - pConnection->inBuf->intLen, 0 );
-    if( n > 0 )
-    {
-        pConnection->inBuf->intLen += n;
-    } else if( n == 0 )
-    {
-        delete pConnection;
-        return;
-    } else {
-        if( errno==EAGAIN || errno==EWOULDBLOCK )
-        {
-            return;
-        } else {
-            delete pConnection;
-            return;
-        }
+    int dataLen = size * nmemb;
+    if( buffer->intLen + dataLen > buffer->intSize ) {
+        buffer->enlarge();
     }
+
+    memcpy( buffer->data + buffer->intLen, ptr, dataLen );
+    buffer->intLen = buffer->intLen + dataLen;
+    return dataLen;
 }
 
 void OcrServer::parseQuery( SocketConnection *pConnection )
 {
+    pConnection->inBuf->data[pConnection->inBuf->intLen-1] = '\0';
+
+    CURLcode res;
+    CURL *curl;
+    curl = curl_easy_init();
+    curl_easy_setopt( curl, CURLOPT_URL, pConnection->inBuf->data );  
+    curl_easy_setopt( curl, CURLOPT_WRITEFUNCTION, getPicData );
+    curl_easy_setopt( curl, CURLOPT_WRITEDATA, pConnection->picBuf );
+    res = curl_easy_perform( curl );
+    if( res != CURLE_OK )
+    {
+        LOG(WARNING) << "curl_easy_perform fail";
+        //TODO
+        return;
+    }
+    curl_easy_cleanup( curl );
+
+    /*FILE* fp = fopen("log/ocr.jpg", "wb");
+    fwrite( pConnection->picBuf->data, 1, pConnection->picBuf->intLen, fp );
+    fclose( fp );*/
+
     SocketBuffer* outBuf;
     outBuf = new SocketBuffer( pConnection->inBuf->intLen );
     outBuf->intLen = 4;
@@ -255,14 +223,7 @@ void OcrServer::readCB( int intFd )
     {
         pConnection->inBuf->enlarge();
     }
-
-    if( pConnection->status == csAccepted )
-    {
-        recvHandshake( pConnection );
-    } else if( pConnection->status == csConnected )
-    {
-        recvQuery( pConnection );
-    }
+    recvQuery( pConnection );
 }
 
 static void readCallback( EV_P_ ev_io *watcher, int revents )
@@ -279,9 +240,15 @@ void OcrServer::acceptCB()
     int acceptFd = accept( intListenFd, (struct sockaddr*)&ss, &slen );
     if( acceptFd == -1 )
     {
-        close( acceptFd );
-        return;
+        if( errno==EAGAIN || errno==EWOULDBLOCK )
+        {
+            return;
+        } else {
+            //TODO close process
+            return;
+        }
     }
+
     int flag = fcntl(acceptFd, F_GETFL, 0);
     fcntl(acceptFd, F_SETFL, flag | O_NONBLOCK);
     LOG(INFO) << "accept fd=" << acceptFd;
@@ -311,7 +278,27 @@ static void acceptCallback( EV_P_ ev_io *watcher, int revents )
     OcrServer::getInstance()->acceptCB();
 }
 
-void OcrServer::run()
+void OcrServer::workerLoop()
+{
+    LOG(INFO) << "worker process start";
+
+    listenWatcher = new ev_io();
+    ev_io_init( listenWatcher, acceptCallback, intListenFd, EV_READ );
+    ev_io_start( pMainLoop, listenWatcher );
+    ev_run( pMainLoop, 0 );
+}
+
+void OcrServer::mainLoop()
+{
+    LOG(INFO) << "main process start";
+    close( intListenFd );
+
+    while( 1 ) {
+        usleep( 1000000 );
+    }
+}
+
+void OcrServer::start()
 {
     struct sockaddr_in sin;
     sin.sin_family = AF_INET;
@@ -340,46 +327,14 @@ void OcrServer::run()
     }
     LOG(INFO) << "server start, listen succ port=" << intListenPort << " fd=" << intListenFd;
 
-    ev_io_init( listenWatcher, acceptCallback, intListenFd, EV_READ );
-    ev_io_start( pMainLoop, listenWatcher );
-    ev_run( pMainLoop, 0 );
-}
-
-void *runOcrServer( void* )
-{
-    OcrServer::getInstance()->run();
-    return NULL;
-}
-
-int OcrServer::start()
-{
-    pthread_attr_t attr;
-    pthread_attr_init( &attr );
-    pthread_attr_setdetachstate( &attr, PTHREAD_CREATE_JOINABLE );
-    int intRet;
-    intRet = pthread_create( &(intThreadId), &attr, runOcrServer, NULL );
-    pthread_attr_destroy( &attr );
-
-    if( intRet == 0 )
-    {
-        LOG(INFO) << "start thread succ";
-        return 0;
-    } else {
-        LOG(WARNING) << "start thread fail";
-        return 1;
-    }
-}
-
-int OcrServer::join()
-{
-    void *pStatus;
-    int intRet;
-    intRet = pthread_join( intThreadId, &pStatus );
-
-    if( intRet == 0 )
-    {
-        return 0;
-    } else {
-        return 1;
+    switch( fork() ) {
+        case 0:
+            workerLoop();
+            break;
+        case -1:
+            LOG(WARNING) << "fork fail";
+            return;
+        default:
+            mainLoop();
     }
 }

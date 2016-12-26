@@ -1,7 +1,7 @@
 OBJS = util/GLog.o util/YamlConf.o util/SocketBuffer.o util/SocketConnection.o OcrServer.o
 CFLAGS = -W -Wall -Wunused-value -std=c++11 -g -rdynamic
-DEPENDS = lib/glog/libglog.a lib/yaml/libyaml-cpp.a -lpthread -lev -ltesseract -llept
-INCLUDE = -I. -Iutil/ -Ilib/
+DEPENDS = lib/glog/libglog.a lib/yaml/libyaml-cpp.a -lpthread -lev -ltesseract -llept -Llib/curl/lib -lcurl
+INCLUDE = -I. -Iutil/ -Ilib/ -Ilib/curl/include
 
 bin/ocr_server: main.cpp main.h $(OBJS)
 	$(CXX) $(CFLAGS) -o $@ $^ $(INCLUDE) $(DEPENDS)
