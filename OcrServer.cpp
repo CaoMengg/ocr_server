@@ -148,6 +148,22 @@ void OcrServer::parseQuery( SocketConnection *pConnection )
     fwrite( pConnection->picBuf->data, 1, pConnection->picBuf->intLen, fp );
     fclose( fp );*/
 
+    tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
+    if( api->Init(NULL, "chi_sim") )
+    {
+        LOG(WARNING) << "tesseract api Init fail";
+        //TODO
+        return;
+    }
+    Pix *image = pixReadMem( pConnection->picBuf->data, pConnection->picBuf->intLen );
+    api->SetImage( image );
+    char *outText = api->GetUTF8Text();
+    api->End();
+    pixDestroy(&image);
+
+    printf("%s", outText);
+    delete [] outText;
+
     SocketBuffer* outBuf;
     outBuf = new SocketBuffer( pConnection->inBuf->intLen );
     outBuf->intLen = 4;

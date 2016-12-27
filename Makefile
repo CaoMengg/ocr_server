@@ -29,8 +29,8 @@ clean:
 	-$(RM) log/*
 
 start:
-	-make stop
-	-make
+	-$(MAKE) --no-print-directory stop
+	-$(MAKE) --no-print-directory
 	./bin/supervise.ocr_server run/ &
 
 stop:

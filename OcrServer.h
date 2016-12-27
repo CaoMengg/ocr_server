@@ -13,6 +13,9 @@
 #include <map>
 
 #include "curl/curl.h"
+#include <tesseract/baseapi.h>
+#include <leptonica/allheaders.h>
+
 #include "GLog.h"
 #include "YamlConf.h"
 #include "SocketConnection.h"
