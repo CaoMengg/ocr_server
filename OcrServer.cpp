@@ -90,8 +90,7 @@ void OcrServer::ackQuery( SocketConnection *pConnection )
         }
     }
 
-    ev_io_stop( pMainLoop, pConnection->writeWatcher );
-    ev_timer_stop( pMainLoop, pConnection->writeTimer );
+    delete pConnection;
 }
 
 void OcrServer::writeCB( int intFd )
@@ -161,24 +160,20 @@ void OcrServer::parseQuery( SocketConnection *pConnection )
     api->End();
     pixDestroy(&image);
 
-    printf("%s", outText);
-    delete [] outText;
-
+    int outTextLen = strlen( outText );
     SocketBuffer* outBuf;
-    outBuf = new SocketBuffer( pConnection->inBuf->intLen );
-    outBuf->intLen = 4;
-    outBuf->data[0] = 'a';
-    outBuf->data[1] = 'b';
-    outBuf->data[2] = 'c';
-    outBuf->data[3] = '\n';
-
+    outBuf = new SocketBuffer( outTextLen + 1 );
+    outBuf->intLen = outTextLen;
+    strncpy( (char*)outBuf->data, outText, outTextLen+1 );
     pConnection->outBufList.push_back( outBuf );
+    delete[] outText;
 
     pConnection->inBuf->intLen = 0;
     pConnection->inBuf->intExpectLen = 0;
 
     ev_io_start( pMainLoop, pConnection->writeWatcher );
 
+    ev_now_update( pMainLoop );
     ev_timer_set( pConnection->writeTimer, pConnection->writeTimeout, 0.0 );
     ev_timer_start( pMainLoop, pConnection->writeTimer );
 }
