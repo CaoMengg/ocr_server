@@ -1,1 +1,2 @@
 listen: 8089
+worker_processes: 3

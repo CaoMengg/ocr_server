@@ -30,6 +30,7 @@ class OcrServer
         {
             config = new YamlConf( "conf/ocr_server.yaml" );
             intListenPort = config->getInt( "listen" );
+            intWorkerProcesses = config->getInt( "worker_processes" );
         }
         ~OcrServer()
         {
@@ -44,11 +45,13 @@ class OcrServer
                 close( intListenFd );
             }
         }
-        static OcrServer *pInstance;
 
+        static OcrServer *pInstance;
         YamlConf *config = NULL;
         struct ev_loop *pMainLoop = EV_DEFAULT;
         int intListenPort = 0;
+        int intWorkerProcesses = 1; //worker process num
+        int intWorkerId = 0;        //0:main other:worker
         int intListenFd = 0;
         ev_io *listenWatcher = NULL;
         connectionMap mapConnection;

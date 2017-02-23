@@ -8,7 +8,9 @@ $strMsg = "http://pws.myhug.cn/npic/p/9/ff5839e3f663949a331a21ab99a8bafd3713f988
 $intLen = strlen( $strMsg );
 if( socket_write( $socket, $strMsg, $intLen ) != $intLen ) {
     echo "send query fail\n";
+    exit;
 }
+echo "send query succ\n";
 
 $strResult = '';
 while( $buff = @socket_read($socket, 1000, PHP_NORMAL_READ) ) {  

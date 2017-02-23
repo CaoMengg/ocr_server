@@ -262,7 +262,7 @@ void OcrServer::acceptCB()
 
     int flag = fcntl(acceptFd, F_GETFL, 0);
     fcntl(acceptFd, F_SETFL, flag | O_NONBLOCK);
-    LOG(INFO) << "accept fd=" << acceptFd;
+    LOG(INFO) << "worker_id=" << intWorkerId << ", accept fd=" << acceptFd;
 
     SocketConnection* pConnection = new SocketConnection();
     pConnection->pLoop = pMainLoop;
@@ -291,7 +291,7 @@ static void acceptCallback( EV_P_ ev_io *watcher, int revents )
 
 void OcrServer::workerLoop()
 {
-    LOG(INFO) << "worker process start";
+    LOG(INFO) << "worker_id=" << intWorkerId << ", process start";
 
     listenWatcher = new ev_io();
     ev_io_init( listenWatcher, acceptCallback, intListenFd, EV_READ );
@@ -338,14 +338,19 @@ void OcrServer::start()
     }
     LOG(INFO) << "server start, listen succ port=" << intListenPort << " fd=" << intListenFd;
 
-    switch( fork() ) {
-        case 0:
-            workerLoop();
-            break;
-        case -1:
-            LOG(WARNING) << "fork fail";
-            return;
-        default:
-            mainLoop();
+    int i = 0;
+    for( i=0; i<intWorkerProcesses; ++i ) {
+        switch( fork() ) {
+            case 0:
+                intWorkerId = i + 1;
+                workerLoop();
+                break;
+            case -1:
+                LOG(WARNING) << "fork fail";
+                return;
+            default:
+                continue;
+        }
     }
+    mainLoop();
 }
