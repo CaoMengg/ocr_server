@@ -299,9 +299,9 @@ void OcrServer::workerLoop()
     ev_run( pMainLoop, 0 );
 }
 
-void OcrServer::mainLoop()
+void OcrServer::masterLoop()
 {
-    LOG(INFO) << "main process start";
+    LOG(INFO) << "master process start";
     close( intListenFd );
 
     while( 1 ) {
@@ -338,19 +338,23 @@ void OcrServer::start()
     }
     LOG(INFO) << "server start, listen succ port=" << intListenPort << " fd=" << intListenFd;
 
-    int i = 0;
-    for( i=0; i<intWorkerProcesses; ++i ) {
-        switch( fork() ) {
+    int intWorkerPId = 0;
+    Process *workerProcess;
+    int i = 1;
+    for( ; i<=intWorkerProcesses; ++i ) {
+        intWorkerPId = fork();
+        switch( intWorkerPId ) {
             case 0:
-                intWorkerId = i + 1;
+                intWorkerId = i;
                 workerLoop();
                 break;
             case -1:
                 LOG(WARNING) << "fork fail";
-                return;
+                break;
             default:
-                continue;
+                workerProcess = new Process( intWorkerPId );
+                mapProcess[ i ] = workerProcess;
         }
     }
-    mainLoop();
+    masterLoop();
 }

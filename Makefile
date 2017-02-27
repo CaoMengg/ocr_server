@@ -1,4 +1,4 @@
-OBJS = util/GLog.o util/YamlConf.o util/SocketBuffer.o util/SocketConnection.o OcrServer.o
+OBJS = util/GLog.o util/YamlConf.o util/SocketBuffer.o util/SocketConnection.o util/ProcessManager.o OcrServer.o
 CFLAGS = -W -Wall -Wunused-value -std=c++11 -g -rdynamic
 DEPENDS = lib/glog/libglog.a lib/yaml/libyaml-cpp.a -lpthread -lev -ltesseract -llept -Llib/curl/lib -lcurl
 INCLUDE = -I. -Iutil/ -Ilib/ -Ilib/curl/include
@@ -16,6 +16,9 @@ util/SocketBuffer.o: util/SocketBuffer.cpp util/SocketBuffer.h
 	$(CXX) $(CFLAGS) -c $< $(INCLUDE) -o $@
 
 util/SocketConnection.o: util/SocketConnection.cpp util/SocketConnection.h
+	$(CXX) $(CFLAGS) -c $< $(INCLUDE) -o $@
+
+util/ProcessManager.o: util/ProcessManager.cpp util/ProcessManager.h
 	$(CXX) $(CFLAGS) -c $< $(INCLUDE) -o $@
 
 OcrServer.o: OcrServer.cpp OcrServer.h

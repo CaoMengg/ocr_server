@@ -19,9 +19,13 @@
 #include "GLog.h"
 #include "YamlConf.h"
 #include "SocketConnection.h"
+#include "ProcessManager.h"
 
 typedef std::map<int, SocketConnection*> connectionMap;
 typedef std::pair<int, SocketConnection*> connectionPair;
+
+typedef std::map<int, Process*> processMap;
+typedef std::pair<int, Process*> processPair;
 
 class OcrServer
 {
@@ -51,14 +55,15 @@ class OcrServer
         struct ev_loop *pMainLoop = EV_DEFAULT;
         int intListenPort = 0;
         int intWorkerProcesses = 1; //worker process num
-        int intWorkerId = 0;        //0:main other:worker
+        int intWorkerId = 0;        //0:master other:worker
         int intListenFd = 0;
         ev_io *listenWatcher = NULL;
         connectionMap mapConnection;
+        processMap mapProcess;
     public:
         static OcrServer *getInstance();
         void start();
-        void mainLoop();
+        void masterLoop();
         void workerLoop();
         void acceptCB();
         void readCB( int intFd );
