@@ -10,7 +10,7 @@ class Process
         }
 
         int intPId;
-        int intStatus;
+        int intStatus;  //0:normal 1:exited
 };
 
 class ProcessManager

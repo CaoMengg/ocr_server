@@ -3,6 +3,8 @@
 
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <ev.h>
 
@@ -60,9 +62,12 @@ class OcrServer
         ev_io *listenWatcher = NULL;
         connectionMap mapConnection;
         processMap mapProcess;
+
+        int workerReap = 0;
     public:
         static OcrServer *getInstance();
         void start();
+        void signalHandlerCB( int intSigNo );
         void masterLoop();
         void workerLoop();
         void acceptCB();

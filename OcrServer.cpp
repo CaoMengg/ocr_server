@@ -299,13 +299,88 @@ void OcrServer::workerLoop()
     ev_run( pMainLoop, 0 );
 }
 
+void OcrServer::signalHandlerCB( int intSigNo )
+{
+    if( intWorkerId != 0 ) {
+        return;
+    }
+
+    LOG(INFO) << "receive signal: " << intSigNo;
+    switch( intSigNo ) {
+        case SIGCHLD:
+            workerReap = 1;
+            int status;
+            int pid;
+            while( 1 )
+            {
+                pid = waitpid( -1, &status, WNOHANG );
+                switch( pid ) {
+                    case 0:
+                        return;
+                    case -1:
+                        return;
+                    default:
+                        processMap::iterator it;
+                        for( it=mapProcess.begin(); it!=mapProcess.end(); ++it ) {
+                            if( it->second->intPId == pid ) {
+                                LOG(INFO) << "worker " << it->first << ", pid=" << pid << " exited";
+                                it->second->intStatus = 1;
+                                break;
+                            }
+                        }
+                }
+            }
+            break;
+    }
+}
+
+void signalHandler( int intSigNo )
+{
+    OcrServer::getInstance()->signalHandlerCB( intSigNo );
+}
+
 void OcrServer::masterLoop()
 {
     LOG(INFO) << "master process start";
-    close( intListenFd );
+
+    struct sigaction sa;
+    sa.sa_handler = signalHandler;
+    sigemptyset( &sa.sa_mask );
+    sigaction( SIGCHLD, &sa, NULL );
+
+    sigset_t set;
+    sigemptyset( &set );
+    sigaddset( &set, SIGCHLD );
+    sigprocmask( SIG_BLOCK, &set, NULL );
+    sigemptyset( &set );
 
     while( 1 ) {
-        usleep( 1000000 );
+        sigsuspend( &set );
+        LOG(INFO) << "master wake up";
+
+        if( workerReap == 1 ) {
+            processMap::iterator it;
+            for( it=mapProcess.begin(); it!=mapProcess.end(); ++it ) {
+                if( it->second->intStatus == 1 ) {
+                    int intWorkerPId = fork();
+                    switch( intWorkerPId ) {
+                        case 0:
+                            intWorkerId = it->first;
+                            workerLoop();
+                            break;
+                        case -1:
+                            LOG(WARNING) << "fork fail";
+                            break;
+                        default:
+                            delete it->second;
+                            Process *workerProcess = new Process( intWorkerPId );
+                            mapProcess[ it->first ] = workerProcess;
+                            LOG(INFO) << "respawn worker " << it->first << ", pid=" << intWorkerPId;
+                    }
+                }
+            }
+            workerReap = 0;
+        }
     }
 }
 
